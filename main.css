@@ -23,7 +23,7 @@ nav {
   left: 0;
   height: 70px;
   width: 100%;
-  background: grey;
+  background: slategray;
   box-shadow: 0 0 1px rgba(0, 0, 0, 0.1);
 }
 
@@ -42,7 +42,7 @@ nav.logo {
 }
 
 .logo .logo-name {
-  color: #1c1c1eff;
+  color: rgb(28, 30, 29);
   font-size: 24px;
   font-weight: 500;
   padding: 20px 0;
@@ -55,7 +55,7 @@ nav .sidebar {
   height: 100%;
   width: 260px;
   padding: 20px 0;
-  background-color: grey;
+  background-color: slategray;
   box-shadow: 0 5px 10px rgba(0, 0, 0, 0.1);
   transition: all 0.5s ease;
 }
@@ -90,7 +90,7 @@ nav.open .mainLogo{
 
 .nav-link:hover .icon,
 .nav-link:hover .link {
-  color: #40f46d;
+  color: slateblue;
 }
 
 .nav-link .icon {
@@ -124,16 +124,17 @@ section {
   padding: 100px 35px;
 }
 
+section h1{
+  color: slateblue !important;
+}
+
 section p {
   line-height: 2;
   max-width: 900px;
   margin: 32px auto;
+  color: white;
 }
 
-section:nth-of-type(#about) {
-  background: beige;
-  color: black;
-}
 
 section.hero {
   height: 100vh;
@@ -148,4 +149,21 @@ section.hero h1 {
   font-weight: 800;
   text-align: center;
   width: 100%;
+}
+
+head{
+  color: beige;
+}
+
+.Click:hover{
+  cursor: pointer;
+}
+
+section:nth-child(2n-1){
+  background-color: slategray !important;
+}
+
+#download.p2 {
+  align-items: end;
+  padding: 0 100px;
 }
