@@ -1,0 +1,202 @@
+* {
+  font-family: "Poppins", sans-serif;
+}
+
+body {
+  overflow: hidden;
+  background-color: rgb(37, 37, 37);
+}
+
+.login-box {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  width: 500px;
+  height: 60%;
+  padding: 40px;
+  transform: translate(-50%, -50%);
+  background-color:rgba(165, 165, 165, 0.15);
+  backdrop-filter: blur(20px);
+  box-sizing: border-box;
+  border-radius: 2em;
+}
+
+.login-box h2{
+  margin: 0 0 30px;
+  padding: 0;
+  color: white;
+  text-align: center;
+}
+
+.login-box .user-box {
+  position: relative;
+}
+
+.login-box header{
+  margin: 0 auto;
+  padding: 20px 0;
+  font-size: 36px;
+  color: white;
+  text-align: start;
+}
+
+.login-box .user-box input {
+  width: 100%;
+  padding: 10px 0;
+  font-size: 16px;
+  color: white;
+  margin-bottom: 30px;
+  border: none;
+  border-bottom: 1px solid white;
+  outline: none;
+  background-color: transparent;
+}
+
+.login-box .user-box label {
+  position: absolute;
+  top: 0;
+  left: 0;
+  padding: 10px 0;
+  font-size: 16px;
+  color: white;
+  pointer-events: none;
+  transition: 0.5s;
+}
+
+.eye-icon{
+  font-size: 18px;
+  top: 15%;
+  right: 10px;
+  color:white;
+  position: absolute;
+  cursor: pointer;
+  padding: 5px;
+}
+
+.login-box .user-box input:focus ~ label,
+.login-box .user-box input:valid ~ label{
+  top: -20px;
+  left: 0;
+  color: white;
+  font-size: 12px;
+}
+
+.form-link{
+  color: white;
+  padding: 15px 70px;
+  text-decoration: none;
+}
+
+.signup-link{
+  color: orangered;
+}
+
+.password-link{
+  text-align: end;
+  text-decoration: none;
+  font-weight: 400;
+  font-size: 14px;
+}
+
+.remember{
+  color: white;
+  margin-top: -20px;
+  text-align: start;
+}
+
+.login-box .submit{
+  width: 100%;
+  height: 100%;
+  margin: 0 auto;
+  position: relative;
+  display: inline-block;
+  padding: 10px 120px;
+  color: black;
+  font-size: 14px;
+  background-color: white;
+  border-radius: 25px;
+  text-decoration: none;
+  text-transform: uppercase;
+  overflow: hidden;
+  transition: 0.5s;
+  margin-top: 30px;
+  letter-spacing: 4px;
+  border: 2px solid white;
+  cursor:pointer;
+}
+
+.submit:hover{
+  background-color: transparent;
+  text-decoration: underline;
+  color: white;
+}
+
+.login-box a{
+  text-decoration: none;
+  color: orangered;
+}
+
+.login-box a:hover {
+  background-color: transparent;
+  color: white;
+  text-decoration: underline;
+}
+
+.line{
+  position: relative;
+  height: 5px;
+  width: 100%;
+  margin: 36px 0;
+  background-color: transparent;
+}
+
+.line::before{
+  content: "Or";
+  position: absolute;
+  top: 20%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background-color:transparent;
+  color: white;
+  padding: 0 15px;
+  -webkit-transform: translate(-50%, -50%);
+  -moz-transform: translate(-50%, -50%);
+  -ms-transform: translate(-50%, -50%);
+  -o-transform: translate(-50%, -50%);
+}
+
+.field-google{
+  color: black;
+  width: 100%;
+  height: 100%;
+  margin: 0 auto;
+  position: relative;
+  display: flex;
+  justify-content: center;
+  padding: 10px 90px;
+  font-size: 14px;
+  background-color: white;
+  border-radius: 25px;
+  overflow: hidden;
+  transition: 0.5s;
+  margin-top: 10px;
+  letter-spacing: 4px;
+  border: 2px solid white;
+  cursor:pointer;
+}
+
+.field-google:hover{
+  text-decoration: underline;
+  color: white;
+  background-color: transparent;
+}
+
+.bxl-google {
+  height: 20px;
+  width: 20px;
+  font-size: 20px;
+  position: absolute;
+  top: 50%;
+  left: 15px;
+  transform: translateY(-50%);
+}

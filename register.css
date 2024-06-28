@@ -1,0 +1,157 @@
+* {
+  font-family: "Poppins", sans-serif;
+}
+
+body {
+  overflow: hidden;
+  background-color:rgb(37, 37, 37);
+}
+
+.register-box {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 500px;
+  padding: 40px;
+  transform: translate(-50%, -50%);
+  background-color: rgba(165, 165, 165, 0.15);
+  backdrop-filter: blur(20px);
+  box-sizing: border-box;
+  border-radius: 2em;
+}
+
+.register-box h2 {
+  margin: 0 0 30px;
+  padding: 0;
+  color: white;
+  text-align: center;
+}
+
+.register-box .user-box {
+  position: relative;
+}
+
+.register-box header{
+  font-size: 36px;
+  text-align: start;
+  color: white;
+  padding: 20px 0;
+}
+.register-box .user-box input {
+  width: 100%;
+  padding: 10px 0;
+  font-size: 16px;
+  color: white;
+  margin-bottom: 30px;
+  border: none;
+  border-bottom: 1px solid white;
+  outline: none;
+  background-color: transparent;
+}
+
+.register-box .user-box label {
+  position: absolute;
+  top: 0;
+  left: 0;
+  padding: 10px 0;
+  font-size: 16px;
+  color: white;
+  pointer-events: none;
+  transition: 0.5s;
+}
+
+.eye-icon{
+  font-size: 18px;
+  top: 15%;
+  right: 10px;
+  color:white;
+  position: absolute;
+  cursor: pointer;
+  padding: 5px;
+}
+
+.register-box .user-box input:focus ~ label,
+.register-box .user-box input:valid ~ label {
+  top: -20px;
+  left: 0;
+  color: white;
+  font-size: 12px;
+}
+
+.register-box form a {
+  margin: 0 auto;
+  position: relative;
+  display: inline-block;
+  padding: 10px 120px;
+  color: black;
+  font-size: 16px;
+  background-color: white;
+  border-radius: 25px;
+  text-decoration: none;
+  text-transform: uppercase;
+  overflow: hidden;
+  transition: 0.5s;
+  margin-top: 50px;
+  letter-spacing: 4px;
+  border: 2px solid white;
+}
+
+.register-box a:hover {
+  background-color: transparent;
+  color: white;
+}
+
+.remember {
+  color: white;
+}
+
+.register-btn button{
+  width: 100%;
+  height: 100%;
+  margin: 0 auto;
+  position: grid;
+  display: inline-block;
+  padding: 10px 0;
+  color: black;
+  font-size: 14px;
+  background-color: white;
+  text-decoration: none;
+  text-transform: uppercase;
+  overflow: hidden;
+  transition: 0.5s;
+  margin-top: 10px;
+  border-radius: 25px;
+  letter-spacing: 4px;
+  border: 2px solid white;
+  cursor:pointer;
+}
+
+.field-google{
+  color: black;
+  width: relative;
+  height: relative;
+  margin: 0 auto;
+  position: relative;
+  display: flex;
+  justify-content: center;
+  padding: 10px 90px;
+  font-size: 14px;
+  background-color: white;
+  border-radius: 25px;
+  overflow: hidden;
+  transition: 0.5s;
+  margin-top: 10px;
+  letter-spacing: 4px;
+  border: 2px solid white;
+  cursor:pointer;
+}
+
+.bxl-google {
+  height: 20px;
+  width: 20px;
+  font-size: 20px;
+  position: absolute;
+  top: 50%;
+  left: 15px;
+  transform: translateY(-50%);
+}

@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Login Page</title>
+        <link rel="stylesheet" href="login.css">
+        <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css'
+            rel='stylesheet'>
+        <script src="login.js"></script>
+    </head>
+    <body>
+        <section>
+            <div class="login-box">
+                <div class="form-content">
+                    <header>Login</header>
+                    <form action="submit">
+                        <div class="user-box">
+                            <input type="text" required>
+                            <label for>email or username</label>
+                        </div>
+
+                        <div class="user-box" id="password">
+                            <input type="password" required>
+                            <label for="password">password</label>
+                            <i class='bx bxs-hide eye-icon'></i>
+                        </div>
+
+                        <div class="password-link">
+                            <a href class="forgot-pass">Forgot password?</a>
+                        </div>
+
+                        <div class="remember">
+                            <input type="checkbox">
+                            Remember Me
+                        </div>
+
+                        <button href="#" class="submit">Submit</button>
+                    </form>
+                </div>
+
+                <div class="form-link">
+                    <span>Don't have an account?
+                        <a href="register.html"
+                            class="signup-link">Signup</a></span>
+                </div>
+                <div class="line"></div>
+
+                <div class="media-options">
+                    <button href="#" class="field-google">
+                        <i class='bx bxl-google'></i>
+                        <span> LOGIN WITH GOOGLE</span>
+                    </button>
+                </div>
+
+            </div>
+        </section>
+    </body>
+</html>
