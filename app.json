@@ -1,30 +1,44 @@
 {
   "expo": {
-    "name": "AlexMobile",
-    "slug": "AlexMobile",
+    "name": "Alex - AI Reading Tutor",
+    "slug": "alex-reading-tutor",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "dark",
     "newArchEnabled": true,
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#1E1B4B"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.alextutor.app",
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "Alex needs microphone access to listen to your reading",
+        "NSSpeechRecognitionUsageDescription": "Alex uses speech recognition to understand what you're reading",
+        "NSCameraUsageDescription": "Alex uses the camera to take photos of book pages",
+        "NSPhotoLibraryUsageDescription": "Alex needs access to select book page images from your library"
+      }
     },
     "android": {
+      "package": "com.alextutor.app",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#1E1B4B"
       },
-      "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.CAMERA",
+        "android.permission.READ_EXTERNAL_STORAGE"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      "expo-camera"
+    ]
   }
 }
