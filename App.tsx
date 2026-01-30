@@ -1,14 +1,8 @@
 /**
- * Alex Mobile - AI Reading Tutor
+ * Alex Mobile - AI Reading Tutor with Voice Recognition
  * ============================================================
  * 
- * A magical reading companion powered by IBM Watson and Granite AI.
- * Features:
- * - Always-on voice listening
- * - Real OCR from book images
- * - Watson TTS for natural Gogo voice
- * - Full AI-powered responses (no hardcoded text)
- * - Text input support
+ * READ ALOUD mode - continuously listens and responds to speech
  */
 
 import React, { useState, useEffect, useRef } from 'react';
@@ -23,17 +17,19 @@ import {
   TextInput,
   Alert,
   ActivityIndicator,
+  Animated,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
 import { Audio } from 'expo-av';
+import * as Speech from 'expo-speech';
 
 // Services
 import * as Gamification from './src/services/gamification';
 import * as GraniteAI from './src/services/granite-ai';
 import * as WatsonTTS from './src/services/watson-tts';
+import * as WatsonSTT from './src/services/watson-stt';
 import * as OCR from './src/services/ocr';
-import { IBM_CONFIG } from './src/config/ibm-config';
 
 // Types
 interface Word {
@@ -49,19 +45,16 @@ export default function App() {
   const [isListening, setIsListening] = useState(false);
   const [words, setWords] = useState<Word[]>([]);
   const [currentWordIndex, setCurrentWordIndex] = useState(0);
-  const [message, setMessage] = useState("Sawubona! I'm Gogo Wisdom. Show me a book page to start reading!");
+  const [message, setMessage] = useState("Sawubona! I'm Gogo Wisdom. Take a photo of a book page, then tap the microphone to read aloud!");
   const [gems, setGems] = useState(0);
   const [level, setLevel] = useState(Gamification.LEVELS[0]);
   const [streak, setStreak] = useState(0);
   const [wordsRead, setWordsRead] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
-  const [textInput, setTextInput] = useState('');
-  const [showTextInput, setShowTextInput] = useState(false);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [extractedText, setExtractedText] = useState('');
+  const [heardText, setHeardText] = useState('');
 
-  // Audio recording for speech recognition
-  const recordingRef = useRef<Audio.Recording | null>(null);
+  // Animation for listening indicator
+  const pulseAnim = useRef(new Animated.Value(1)).current;
 
   // ============================================================
   // INITIALIZATION
@@ -69,12 +62,23 @@ export default function App() {
   useEffect(() => {
     initializeApp();
     return () => {
-      // Cleanup
-      if (recordingRef.current) {
-        recordingRef.current.stopAndUnloadAsync();
-      }
+      WatsonSTT.stopListening();
     };
   }, []);
+
+  // Pulse animation when listening
+  useEffect(() => {
+    if (isListening) {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, { toValue: 1.2, duration: 500, useNativeDriver: true }),
+          Animated.timing(pulseAnim, { toValue: 1, duration: 500, useNativeDriver: true }),
+        ])
+      ).start();
+    } else {
+      pulseAnim.setValue(1);
+    }
+  }, [isListening]);
 
   async function initializeApp() {
     try {
@@ -85,51 +89,99 @@ export default function App() {
       setLevel(summary.level);
 
       // Request permissions
-      await Audio.requestPermissionsAsync();
+      const audioPermission = await Audio.requestPermissionsAsync();
       await ImagePicker.requestCameraPermissionsAsync();
 
-      // Welcome message with Watson TTS
-      const welcomeMessage = await GraniteAI.generateResponse(
-        `You are Gogo Wisdom, a warm South African grandmother. Generate a short, loving greeting for a child who just opened the reading app. Use South African expressions like "Sawubona" or "Howzit". Keep it under 2 sentences.`
-      );
+      if (!audioPermission.granted) {
+        Alert.alert('Microphone Permission', 'Please allow microphone access to read aloud!');
+      }
 
-      setMessage(welcomeMessage || "Sawubona my child! Let's read together!");
-      await WatsonTTS.speak(welcomeMessage || "Sawubona my child! Let's read together!", 'normal');
-
-      // Start always-on listening mode
-      startContinuousListening();
+      // Welcome message
+      await WatsonTTS.speak("Sawubona my child! Take a photo of a book page, then tap the big microphone to read aloud!", 'normal');
 
     } catch (error) {
       console.error('Init error:', error);
-      setMessage("Hello! I'm Gogo Wisdom. Show me a book page!");
     }
   }
 
   // ============================================================
-  // ALWAYS-ON VOICE LISTENING
+  // VOICE RECOGNITION - READ ALOUD
   // ============================================================
-  async function startContinuousListening() {
-    try {
-      // Configure audio mode for recording
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: true,
-        playsInSilentModeIOS: true,
-        staysActiveInBackground: true,
-      });
+  async function startListening() {
+    if (words.length === 0) {
+      await WatsonTTS.speak("First take a photo of a book page, then we can read together!", 'encouraging');
+      return;
+    }
 
-      setIsListening(true);
-      console.log('🎤 Always-on listening activated');
+    setIsListening(true);
+    setHeardText('');
 
-      // Note: For real speech recognition, we'd use Watson STT WebSocket
-      // For now, we use the text input as an alternative
+    await WatsonTTS.speak("I'm listening! Start reading aloud.", 'encouraging');
 
-    } catch (error) {
-      console.error('Listening error:', error);
+    // Start Watson STT
+    await WatsonSTT.startListening(handleSpeechResult);
+  }
+
+  async function stopListening() {
+    setIsListening(false);
+    await WatsonSTT.stopListening();
+
+    if (wordsRead > 0) {
+      const praise = await GraniteAI.generateResponse(
+        `You are Gogo Wisdom. The child just finished a reading session. They read ${wordsRead} words with a best streak of ${streak}. Generate a warm closing message. Keep it under 2 sentences.`
+      );
+      setMessage(praise);
+      await WatsonTTS.speak(praise, 'celebrating');
     }
   }
 
+  async function handleSpeechResult(text: string, isFinal: boolean) {
+    if (!text.trim()) return;
+
+    setHeardText(text);
+    console.log('🎤 Heard:', text);
+
+    // Match spoken words against expected words
+    const spokenWords = text.toLowerCase().split(/\s+/);
+
+    for (const spoken of spokenWords) {
+      if (currentWordIndex >= words.length) break;
+
+      const expected = words[currentWordIndex].text.toLowerCase().replace(/[^\w]/g, '');
+      const spokenClean = spoken.replace(/[^\w]/g, '');
+
+      if (spokenClean === expected || isCloseMatch(spokenClean, expected)) {
+        await handleCorrectWord();
+      } else if (spokenClean.length > 2) {
+        // Only count as mistake if it's a real word attempt
+        await handleMistake(expected, spokenClean);
+      }
+    }
+  }
+
+  // Simple fuzzy matching for pronunciation variations
+  function isCloseMatch(spoken: string, expected: string): boolean {
+    if (spoken.length < 2 || expected.length < 2) return spoken === expected;
+
+    // Allow 1 character difference for words under 5 chars
+    // Allow 2 character difference for longer words
+    const maxDiff = expected.length < 5 ? 1 : 2;
+    let diff = 0;
+
+    const longer = spoken.length > expected.length ? spoken : expected;
+    const shorter = spoken.length > expected.length ? expected : spoken;
+
+    diff = longer.length - shorter.length;
+
+    for (let i = 0; i < shorter.length && diff <= maxDiff; i++) {
+      if (shorter[i] !== longer[i]) diff++;
+    }
+
+    return diff <= maxDiff;
+  }
+
   // ============================================================
-  // IMAGE PICKING & REAL OCR
+  // IMAGE PICKING & OCR
   // ============================================================
   async function pickImage() {
     setIsLoading(true);
@@ -164,24 +216,21 @@ export default function App() {
 
   async function processImage(imageUri: string) {
     try {
-      // Tell user we're processing
-      setMessage("Let me look at this page...");
-      await WatsonTTS.speak("Let me look at this page, my child.", 'normal');
+      setMessage("Let me read this page...");
+      await WatsonTTS.speak("Let me look at this page.", 'normal');
 
       // Real OCR extraction
       let text = await OCR.extractTextFree(imageUri);
 
-      if (!text || text.trim().length === 0) {
-        const errorMessage = await GraniteAI.generateResponse(
-          `You are Gogo Wisdom. The OCR couldn't read the book page clearly. Generate a short, encouraging response asking the child to take a clearer photo. Keep it under 2 sentences.`
+      if (!text || text.trim().length < 5) {
+        const errorMsg = await GraniteAI.generateResponse(
+          `You are Gogo Wisdom. The camera couldn't read the book page clearly. Ask the child to take a clearer photo with good lighting. Keep it under 2 sentences.`
         );
-        setMessage(errorMessage);
-        await WatsonTTS.speak(errorMessage, 'encouraging');
+        setMessage(errorMsg);
+        await WatsonTTS.speak(errorMsg, 'encouraging');
         setIsLoading(false);
         return;
       }
-
-      setExtractedText(text);
 
       // Parse words
       const wordList = text.split(/\s+/)
@@ -195,12 +244,18 @@ export default function App() {
 
       setWords(wordList);
       setCurrentWordIndex(0);
+      setWordsRead(0);
+      setStreak(0);
 
-      // Generate AI introduction for this specific text
+      // AI introduction
       const intro = await GraniteAI.generateResponse(
-        `You are Gogo Wisdom. A child is about to read this text: "${text.substring(0, 200)}..."
+        `You are Gogo Wisdom. A child is about to read: "${text.substring(0, 150)}..."
         
-        Generate an EXCITING, personalized introduction that references what the story might be about. Use South African expressions. Keep it under 2 sentences. Make them eager to read!`
+        Generate an EXCITED introduction that:
+        1. Mentions what the text seems to be about
+        2. Encourages them to tap the microphone and start reading aloud
+        
+        Use South African expressions. Keep it under 2 sentences.`
       );
 
       setMessage(intro);
@@ -208,49 +263,15 @@ export default function App() {
 
     } catch (error) {
       console.error('OCR error:', error);
-      setMessage("Eish! I couldn't read that. Can you take another photo?");
-      await WatsonTTS.speak("Eish! I couldn't read that page clearly. Can you try taking another photo?", 'calm');
+      setMessage("Eish! Let's try taking another photo.");
+      await WatsonTTS.speak("Eish! I couldn't read that. Let's try taking another photo with better light.", 'calm');
     }
 
     setIsLoading(false);
   }
 
   // ============================================================
-  // TEXT INPUT HANDLING (Alternative to Voice)
-  // ============================================================
-  async function handleTextInput() {
-    if (!textInput.trim()) return;
-
-    setIsProcessing(true);
-    const input = textInput.trim().toLowerCase();
-    setTextInput('');
-
-    // Check if it matches the current word
-    if (words.length > 0 && currentWordIndex < words.length) {
-      const currentWord = words[currentWordIndex].text.toLowerCase();
-
-      if (input === currentWord) {
-        await handleCorrectWord();
-      } else {
-        await handleMistake(currentWord, input);
-      }
-    } else {
-      // Conversational response when no text is loaded
-      const response = await GraniteAI.generateResponse(
-        `You are Gogo Wisdom, a warm South African grandmother reading tutor. 
-        The child said: "${textInput}"
-        
-        Respond naturally and warmly. If they're asking to read, encourage them to pick a book page. Keep it under 2 sentences.`
-      );
-      setMessage(response);
-      await WatsonTTS.speak(response, 'normal');
-    }
-
-    setIsProcessing(false);
-  }
-
-  // ============================================================
-  // READING RESPONSE HANDLERS (All AI-Generated)
+  // WORD HANDLERS (AI-Generated Responses)
   // ============================================================
   async function handleCorrectWord() {
     const newWords = [...words];
@@ -267,30 +288,28 @@ export default function App() {
     const result = await Gamification.recordCorrectWord(newStreak);
     setGems(prev => prev + result.gems);
 
-    // Generate AI response based on context
+    // Celebrate milestones
     if (result.levelUp) {
       setLevel(result.levelUp);
-      const levelUpMessage = await GraniteAI.generateResponse(
-        `You are Gogo Wisdom. The child just leveled up to "${result.levelUp.name}" (level ${result.levelUp.level})! 
-        Generate an EXCITED celebration message. Use South African expressions. Keep it under 2 sentences.`
+      const msg = await GraniteAI.generateResponse(
+        `You are Gogo Wisdom. The child leveled up to ${result.levelUp.name}! Generate an EXCITED 1-sentence celebration.`
       );
-      setMessage(levelUpMessage);
-      await WatsonTTS.speak(levelUpMessage, 'celebrating');
-    } else if (newStreak === 5 || newStreak === 10 || newStreak === 20) {
-      const streakMessage = await GraniteAI.generateResponse(
-        `You are Gogo Wisdom. The child just read ${newStreak} words correctly in a row! 
-        Generate an enthusiastic celebration. Mention the streak number. Keep it under 2 sentences.`
+      setMessage(msg);
+      await WatsonTTS.speak(msg, 'celebrating');
+    } else if (newStreak === 5 || newStreak === 10 || newStreak === 15) {
+      const msg = await GraniteAI.generateResponse(
+        `You are Gogo Wisdom. The child got ${newStreak} words right in a row! Generate a quick 1-sentence celebration.`
       );
-      setMessage(streakMessage);
-      await WatsonTTS.speak(streakMessage, 'celebrating');
+      setMessage(msg);
+      await WatsonTTS.speak(msg, 'celebrating');
     } else if (currentWordIndex + 1 >= words.length) {
-      // Finished the page!
-      const finishMessage = await GraniteAI.generateResponse(
-        `You are Gogo Wisdom. The child just finished reading the entire page! They read ${wordsRead + 1} words total.
-        Generate a proud, celebratory message. Use South African expressions. Keep it under 2 sentences.`
+      // Finished!
+      const msg = await GraniteAI.generateResponse(
+        `You are Gogo Wisdom. The child finished reading the whole page (${wordsRead + 1} words)! Generate an EXCITED closing celebration.`
       );
-      setMessage(finishMessage);
-      await WatsonTTS.speak(finishMessage, 'celebrating');
+      setMessage(msg);
+      await WatsonTTS.speak(msg, 'celebrating');
+      await stopListening();
     }
   }
 
@@ -298,28 +317,32 @@ export default function App() {
     setStreak(0);
     await Gamification.recordMistake();
 
-    // Mark word as incorrect
     const newWords = [...words];
     newWords[currentWordIndex].isRead = true;
     newWords[currentWordIndex].isCorrect = false;
     setWords(newWords);
 
-    // Generate AI correction using Sandwich Method
+    // Pause listening while correcting
+    await WatsonSTT.stopListening();
+
     const correction = await GraniteAI.generateResponse(
-      `You are Gogo Wisdom, a patient and loving reading tutor.
+      `You are Gogo Wisdom. The child tried to read "${expected}" but said "${spoken}".
       
-      The child tried to read the word "${expected}" but said "${spoken}".
+      Generate a GENTLE correction that:
+      1. Brief praise for trying
+      2. Says the correct word clearly
+      3. Encourages them to continue
       
-      Use the Sandwich Method:
-      1. Start with brief praise for trying
-      2. Gently correct them - say what the word actually is
-      3. End with encouragement
-      
-      Keep it SHORT (under 3 sentences). Use South African expressions naturally.`
+      Keep it under 2 sentences. Be warm and patient.`
     );
 
     setMessage(correction);
     await WatsonTTS.speak(correction, 'encouraging');
+
+    // Resume listening
+    if (isListening) {
+      await WatsonSTT.startListening(handleSpeechResult);
+    }
   }
 
   // ============================================================
@@ -329,21 +352,15 @@ export default function App() {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" />
 
-      <LinearGradient
-        colors={['#1E1B4B', '#312E81', '#4338CA']}
-        style={styles.gradient}
-      >
+      <LinearGradient colors={['#1E1B4B', '#312E81', '#4338CA']} style={styles.gradient}>
         {/* Header */}
         <View style={styles.header}>
           <View style={styles.avatar}>
             <Text style={styles.avatarEmoji}>👵🏾</Text>
-            {isListening && <View style={styles.listeningDot} />}
           </View>
           <View style={styles.headerText}>
             <Text style={styles.title}>Alex</Text>
-            <Text style={styles.subtitle}>
-              {isListening ? '🎤 Always Listening...' : 'Your Reading Friend'}
-            </Text>
+            <Text style={styles.subtitle}>Read Aloud to Gogo!</Text>
           </View>
           <View style={styles.gemCounter}>
             <Text style={styles.gemIcon}>💎</Text>
@@ -352,33 +369,34 @@ export default function App() {
           </View>
         </View>
 
-        {/* Stats Bar */}
+        {/* Stats */}
         <View style={styles.statsBar}>
           <View style={styles.statItem}>
-            <Text style={styles.statIcon}>⭐</Text>
             <Text style={styles.statValue}>{wordsRead}</Text>
             <Text style={styles.statLabel}>Words</Text>
           </View>
           <View style={styles.statItem}>
-            <Text style={styles.statIcon}>🔥</Text>
-            <Text style={styles.statValue}>{streak}</Text>
+            <Text style={styles.statValue}>🔥 {streak}</Text>
             <Text style={styles.statLabel}>Streak</Text>
           </View>
           <View style={styles.statItem}>
-            <Text style={styles.statIcon}>📖</Text>
-            <Text style={styles.statValue}>{words.length > 0 ? currentWordIndex : 0}/{words.length}</Text>
+            <Text style={styles.statValue}>{currentWordIndex}/{words.length}</Text>
             <Text style={styles.statLabel}>Progress</Text>
           </View>
         </View>
 
         {/* Gogo's Message */}
         <View style={styles.messageBubble}>
-          {isProcessing ? (
-            <ActivityIndicator color="#4338CA" />
-          ) : (
-            <Text style={styles.messageText}>{message}</Text>
-          )}
+          <Text style={styles.messageText}>{message}</Text>
         </View>
+
+        {/* What I Heard */}
+        {heardText && (
+          <View style={styles.heardBubble}>
+            <Text style={styles.heardLabel}>I heard:</Text>
+            <Text style={styles.heardText}>"{heardText}"</Text>
+          </View>
+        )}
 
         {/* Reading Area */}
         <ScrollView style={styles.readingArea} contentContainerStyle={styles.readingContent}>
@@ -406,45 +424,30 @@ export default function App() {
           ) : (
             <View style={styles.emptyState}>
               <Text style={styles.emptyIcon}>📚</Text>
-              <Text style={styles.emptyText}>Take a photo of a book page to start reading!</Text>
+              <Text style={styles.emptyText}>Take a photo of a book page to start!</Text>
             </View>
           )}
         </ScrollView>
 
-        {/* Text Input (Alternative to Voice) */}
-        <View style={styles.inputContainer}>
-          <TextInput
-            style={styles.textInput}
-            placeholder={words.length > 0 ? `Type the word: "${words[currentWordIndex]?.text || ''}"` : "Type or speak to Gogo..."}
-            placeholderTextColor="#9CA3AF"
-            value={textInput}
-            onChangeText={setTextInput}
-            onSubmitEditing={handleTextInput}
-            returnKeyType="send"
-            autoCapitalize="none"
-          />
-          <TouchableOpacity style={styles.sendButton} onPress={handleTextInput}>
-            <Text style={styles.sendIcon}>→</Text>
-          </TouchableOpacity>
-        </View>
-
         {/* Action Buttons */}
         <View style={styles.actions}>
-          <TouchableOpacity style={styles.button} onPress={pickImage}>
+          <TouchableOpacity style={styles.smallButton} onPress={pickImage}>
             <Text style={styles.buttonIcon}>🖼️</Text>
-            <Text style={styles.buttonLabel}>Gallery</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.cameraButton} onPress={takePhoto}>
-            <Text style={styles.cameraIcon}>📸</Text>
+
+          {/* Big Microphone Button */}
+          <TouchableOpacity
+            style={[styles.micButton, isListening && styles.micButtonActive]}
+            onPress={isListening ? stopListening : startListening}
+          >
+            <Animated.View style={{ transform: [{ scale: isListening ? pulseAnim : 1 }] }}>
+              <Text style={styles.micIcon}>{isListening ? '⏹️' : '🎤'}</Text>
+            </Animated.View>
+            <Text style={styles.micLabel}>{isListening ? 'STOP' : 'READ ALOUD'}</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.button} onPress={() => {
-            setWords([]);
-            setCurrentWordIndex(0);
-            setExtractedText('');
-            setMessage("Let's pick a new book page!");
-          }}>
-            <Text style={styles.buttonIcon}>🔄</Text>
-            <Text style={styles.buttonLabel}>Reset</Text>
+
+          <TouchableOpacity style={styles.smallButton} onPress={takePhoto}>
+            <Text style={styles.buttonIcon}>📸</Text>
           </TouchableOpacity>
         </View>
       </LinearGradient>
@@ -456,232 +459,44 @@ export default function App() {
 // STYLES
 // ============================================================
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  gradient: {
-    flex: 1,
-    paddingHorizontal: 16,
-    paddingTop: 10,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  avatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: '#F59E0B',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-    position: 'relative',
-  },
-  avatarEmoji: {
-    fontSize: 32,
-  },
-  listeningDot: {
-    position: 'absolute',
-    bottom: 2,
-    right: 2,
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: '#10B981',
-    borderWidth: 2,
-    borderColor: '#1E1B4B',
-  },
-  headerText: {
-    flex: 1,
-  },
-  title: {
-    fontSize: 26,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-  },
-  subtitle: {
-    fontSize: 13,
-    color: '#A5B4FC',
-  },
-  gemCounter: {
-    alignItems: 'center',
-    backgroundColor: 'rgba(99, 102, 241, 0.6)',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-  },
-  gemIcon: {
-    fontSize: 18,
-  },
-  gemCount: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-  },
-  levelText: {
-    fontSize: 9,
-    color: '#C7D2FE',
-  },
-  statsBar: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginBottom: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 12,
-    paddingVertical: 10,
-  },
-  statItem: {
-    alignItems: 'center',
-  },
-  statIcon: {
-    fontSize: 16,
-  },
-  statValue: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-  },
-  statLabel: {
-    fontSize: 10,
-    color: '#A5B4FC',
-  },
-  messageBubble: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 14,
-    marginBottom: 12,
-    minHeight: 60,
-    justifyContent: 'center',
-  },
-  messageText: {
-    fontSize: 15,
-    color: '#1E1B4B',
-    textAlign: 'center',
-    lineHeight: 22,
-  },
-  readingArea: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    marginBottom: 12,
-  },
-  readingContent: {
-    padding: 16,
-    minHeight: 150,
-  },
-  wordsContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-  },
-  word: {
-    fontSize: 22,
-    color: '#374151',
-    marginBottom: 6,
-    marginRight: 4,
-  },
-  wordCorrect: {
-    color: '#10B981',
-    fontWeight: '600',
-  },
-  wordIncorrect: {
-    color: '#EF4444',
-    textDecorationLine: 'underline',
-  },
-  wordCurrent: {
-    backgroundColor: '#FEF3C7',
-    borderRadius: 4,
-    paddingHorizontal: 4,
-    color: '#92400E',
-    fontWeight: '700',
-  },
-  emptyState: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 40,
-  },
-  emptyIcon: {
-    fontSize: 48,
-    marginBottom: 12,
-  },
-  emptyText: {
-    fontSize: 14,
-    color: '#6B7280',
-    textAlign: 'center',
-  },
-  loadingState: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 60,
-  },
-  loadingText: {
-    marginTop: 12,
-    color: '#6B7280',
-  },
-  inputContainer: {
-    flexDirection: 'row',
-    marginBottom: 12,
-  },
-  textInput: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    fontSize: 16,
-    color: '#1E1B4B',
-  },
-  sendButton: {
-    backgroundColor: '#10B981',
-    width: 48,
-    borderRadius: 12,
-    marginLeft: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  sendIcon: {
-    fontSize: 20,
-    color: '#FFFFFF',
-    fontWeight: 'bold',
-  },
-  actions: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingBottom: 16,
-    gap: 12,
-  },
-  button: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-    minWidth: 80,
-  },
-  buttonIcon: {
-    fontSize: 24,
-  },
-  buttonLabel: {
-    color: '#FFFFFF',
-    fontSize: 11,
-    marginTop: 4,
-  },
-  cameraButton: {
-    backgroundColor: '#10B981',
-    width: 70,
-    height: 70,
-    borderRadius: 35,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#10B981',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  cameraIcon: {
-    fontSize: 32,
-  },
+  container: { flex: 1 },
+  gradient: { flex: 1, paddingHorizontal: 16, paddingTop: 10 },
+  header: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
+  avatar: { width: 50, height: 50, borderRadius: 25, backgroundColor: '#F59E0B', justifyContent: 'center', alignItems: 'center', marginRight: 12 },
+  avatarEmoji: { fontSize: 28 },
+  headerText: { flex: 1 },
+  title: { fontSize: 24, fontWeight: 'bold', color: '#FFF' },
+  subtitle: { fontSize: 12, color: '#A5B4FC' },
+  gemCounter: { alignItems: 'center', backgroundColor: 'rgba(99,102,241,0.6)', padding: 8, borderRadius: 12 },
+  gemIcon: { fontSize: 16 },
+  gemCount: { fontSize: 16, fontWeight: 'bold', color: '#FFF' },
+  levelText: { fontSize: 8, color: '#C7D2FE' },
+  statsBar: { flexDirection: 'row', justifyContent: 'space-around', marginBottom: 10, backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 12, padding: 10 },
+  statItem: { alignItems: 'center' },
+  statValue: { fontSize: 16, fontWeight: 'bold', color: '#FFF' },
+  statLabel: { fontSize: 10, color: '#A5B4FC' },
+  messageBubble: { backgroundColor: '#FFF', borderRadius: 16, padding: 12, marginBottom: 8, minHeight: 50 },
+  messageText: { fontSize: 14, color: '#1E1B4B', textAlign: 'center', lineHeight: 20 },
+  heardBubble: { backgroundColor: 'rgba(16,185,129,0.2)', borderRadius: 12, padding: 10, marginBottom: 8 },
+  heardLabel: { fontSize: 10, color: '#10B981', marginBottom: 2 },
+  heardText: { fontSize: 14, color: '#FFF', fontStyle: 'italic' },
+  readingArea: { flex: 1, backgroundColor: '#FFF', borderRadius: 16, marginBottom: 12 },
+  readingContent: { padding: 16, minHeight: 120 },
+  wordsContainer: { flexDirection: 'row', flexWrap: 'wrap' },
+  word: { fontSize: 20, color: '#374151', marginBottom: 6, marginRight: 4 },
+  wordCorrect: { color: '#10B981', fontWeight: '600' },
+  wordIncorrect: { color: '#EF4444', textDecorationLine: 'underline' },
+  wordCurrent: { backgroundColor: '#FEF3C7', borderRadius: 4, paddingHorizontal: 4, color: '#92400E', fontWeight: '700' },
+  emptyState: { alignItems: 'center', justifyContent: 'center', paddingVertical: 30 },
+  emptyIcon: { fontSize: 40, marginBottom: 10 },
+  emptyText: { fontSize: 14, color: '#6B7280', textAlign: 'center' },
+  loadingState: { alignItems: 'center', justifyContent: 'center', paddingVertical: 40 },
+  loadingText: { marginTop: 10, color: '#6B7280' },
+  actions: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', paddingBottom: 16, gap: 16 },
+  smallButton: { backgroundColor: 'rgba(255,255,255,0.2)', width: 56, height: 56, borderRadius: 28, justifyContent: 'center', alignItems: 'center' },
+  buttonIcon: { fontSize: 24 },
+  micButton: { backgroundColor: '#10B981', width: 100, height: 100, borderRadius: 50, justifyContent: 'center', alignItems: 'center', shadowColor: '#10B981', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 10, elevation: 10 },
+  micButtonActive: { backgroundColor: '#EF4444', shadowColor: '#EF4444' },
+  micIcon: { fontSize: 36 },
+  micLabel: { color: '#FFF', fontSize: 10, fontWeight: 'bold', marginTop: 4 },
 });
