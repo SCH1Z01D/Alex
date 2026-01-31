@@ -1,0 +1,155 @@
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Inter:wght@400;500;600&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 258 100% 65%;
+    --foreground: 0 0% 100%;
+    --card: 16 100% 62%;
+    --card-foreground: 0 0% 100%;
+    --popover: 258 100% 65%;
+    --popover-foreground: 0 0% 100%;
+    --primary: 48 100% 50%;
+    --primary-foreground: 258 100% 25%;
+    --secondary: 16 100% 62%;
+    --secondary-foreground: 0 0% 100%;
+    --muted: 258 60% 55%;
+    --muted-foreground: 0 0% 100% / 0.78;
+    --accent: 48 100% 50%;
+    --accent-foreground: 258 100% 25%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 100% / 0.2;
+    --input: 0 0% 100% / 0.15;
+    --ring: 48 100% 50%;
+    --radius: 0.625rem;
+    
+    --violet: #7B4DFF;
+    --coral: #FF6A3D;
+    --yellow: #FFD600;
+    --white: #FFFFFF;
+    --white-soft: rgba(255, 255, 255, 0.78);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  
+  html {
+    scroll-behavior: smooth;
+  }
+  
+  body {
+    @apply bg-[#7B4DFF] text-white antialiased;
+    font-family: 'Inter', sans-serif;
+    overflow-x: hidden;
+  }
+  
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Nunito', sans-serif;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+  }
+}
+
+@layer components {
+  .font-display {
+    font-family: 'Nunito', sans-serif;
+  }
+  
+  .font-label {
+    font-family: 'Space Grotesk', sans-serif;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+  
+  .btn-primary {
+    @apply bg-[#FFD600] text-[#7B4DFF] font-bold px-8 py-4 rounded-full 
+           transition-all duration-200 hover:-translate-y-0.5 hover:scale-[1.02]
+           active:scale-[0.98] shadow-lg;
+  }
+  
+  .btn-secondary {
+    @apply bg-white/10 text-white font-semibold px-8 py-4 rounded-full 
+           backdrop-blur-sm border border-white/20
+           transition-all duration-200 hover:-translate-y-0.5 hover:bg-white/20
+           active:scale-[0.98];
+  }
+  
+  .card-coral {
+    @apply bg-[#FF6A3D] rounded-[32px] p-8;
+  }
+  
+  .card-white {
+    @apply bg-white rounded-[28px] p-8 text-gray-800;
+  }
+  
+  .badge-yellow {
+    @apply bg-[#FFD600] text-[#7B4DFF] font-label text-xs font-bold px-4 py-2 rounded-full;
+  }
+  
+  .section-pinned {
+    @apply w-screen h-screen overflow-hidden relative;
+  }
+  
+  .text-gradient {
+    @apply bg-gradient-to-r from-white to-white/80 bg-clip-text text-transparent;
+  }
+  
+  .image-violet-overlay {
+    @apply relative;
+  }
+  
+  .image-violet-overlay::after {
+    content: '';
+    @apply absolute inset-0 rounded-[34px];
+    background: linear-gradient(180deg, rgba(123, 77, 255, 0.35), rgba(123, 77, 255, 0.55));
+    pointer-events: none;
+  }
+  
+  .noise-overlay {
+    @apply fixed inset-0 pointer-events-none z-50;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+    opacity: 0.04;
+    mix-blend-mode: overlay;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+  
+  .animation-paused {
+    animation-play-state: paused;
+  }
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.5);
+}
+
+/* Selection styling */
+::selection {
+  background: rgba(255, 214, 0, 0.3);
+  color: white;
+}
