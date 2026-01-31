@@ -2,7 +2,11 @@
  * Alex Mobile - AI Reading Tutor with Voice Recognition
  * ============================================================
  * 
- * READ ALOUD mode - continuously listens and responds to speech
+ * Features:
+ * - Story Library with graded levels
+ * - OCR for reading from book photos
+ * - Real-time word highlighting synced with speech
+ * - Gamification with gems and levels
  */
 
 import React, { useState, useEffect, useRef } from 'react';
@@ -14,15 +18,15 @@ import {
   SafeAreaView,
   StatusBar,
   ScrollView,
-  TextInput,
+  Modal,
   Alert,
   ActivityIndicator,
   Animated,
+  FlatList,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
 import { Audio } from 'expo-av';
-import * as Speech from 'expo-speech';
 
 // Services
 import * as Gamification from './src/services/gamification';
@@ -30,6 +34,9 @@ import * as GraniteAI from './src/services/granite-ai';
 import * as WatsonTTS from './src/services/watson-tts';
 import * as WatsonSTT from './src/services/watson-stt';
 import * as OCR from './src/services/ocr';
+
+// Data
+import { STORIES, Story, LEVEL_INFO } from './src/data/stories';
 
 // Types
 interface Word {
@@ -45,16 +52,19 @@ export default function App() {
   const [isListening, setIsListening] = useState(false);
   const [words, setWords] = useState<Word[]>([]);
   const [currentWordIndex, setCurrentWordIndex] = useState(0);
-  const [message, setMessage] = useState("Sawubona! I'm Gogo Wisdom. Take a photo of a book page, then tap the microphone to read aloud!");
+  const [message, setMessage] = useState("Sawubona! I'm Gogo Wisdom. Pick a story or take a photo, then tap the microphone to read aloud!");
   const [gems, setGems] = useState(0);
   const [level, setLevel] = useState(Gamification.LEVELS[0]);
   const [streak, setStreak] = useState(0);
   const [wordsRead, setWordsRead] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [heardText, setHeardText] = useState('');
+  const [showStoryModal, setShowStoryModal] = useState(false);
+  const [currentStory, setCurrentStory] = useState<Story | null>(null);
 
   // Animation for listening indicator
   const pulseAnim = useRef(new Animated.Value(1)).current;
+  const highlightAnim = useRef(new Animated.Value(1)).current;
 
   // ============================================================
   // INITIALIZATION
@@ -80,15 +90,21 @@ export default function App() {
     }
   }, [isListening]);
 
+  // Highlight animation when word changes
+  useEffect(() => {
+    Animated.sequence([
+      Animated.timing(highlightAnim, { toValue: 1.1, duration: 150, useNativeDriver: true }),
+      Animated.timing(highlightAnim, { toValue: 1, duration: 150, useNativeDriver: true }),
+    ]).start();
+  }, [currentWordIndex]);
+
   async function initializeApp() {
     try {
-      // Load gamification state
       await Gamification.loadState();
       const summary = Gamification.getSummary();
       setGems(summary.gems);
       setLevel(summary.level);
 
-      // Request permissions
       const audioPermission = await Audio.requestPermissionsAsync();
       await ImagePicker.requestCameraPermissionsAsync();
 
@@ -96,12 +112,48 @@ export default function App() {
         Alert.alert('Microphone Permission', 'Please allow microphone access to read aloud!');
       }
 
-      // Welcome message
-      await WatsonTTS.speak("Sawubona my child! Take a photo of a book page, then tap the big microphone to read aloud!", 'normal');
-
+      await WatsonTTS.speak("Sawubona my child! Pick a story or take a photo of a book page, then tap the big microphone to read aloud!", 'normal');
     } catch (error) {
       console.error('Init error:', error);
     }
+  }
+
+  // ============================================================
+  // STORY SELECTION
+  // ============================================================
+  async function selectStory(story: Story) {
+    setShowStoryModal(false);
+    setCurrentStory(story);
+    await loadStoryText(story);
+  }
+
+  async function loadStoryText(story: Story) {
+    setIsLoading(true);
+
+    const wordList = story.text.split(/\s+/)
+      .filter(w => w.length > 0)
+      .map(word => ({
+        text: word.replace(/[^\\w'-]/g, ''),
+        isRead: false,
+        isCorrect: false,
+      }))
+      .filter(w => w.text.length > 0);
+
+    setWords(wordList);
+    setCurrentWordIndex(0);
+    setWordsRead(0);
+    setStreak(0);
+
+    const intro = await GraniteAI.generateResponse(
+      `You are Gogo Wisdom. A child is about to read "${story.title}".
+      Text preview: "${story.text.substring(0, 100)}..."
+      
+      Generate an EXCITED 1-2 sentence introduction to get them interested!`
+    );
+
+    setMessage(intro);
+    await WatsonTTS.speak(intro, 'celebrating');
+    setIsLoading(false);
   }
 
   // ============================================================
@@ -109,7 +161,7 @@ export default function App() {
   // ============================================================
   async function startListening() {
     if (words.length === 0) {
-      await WatsonTTS.speak("First take a photo of a book page, then we can read together!", 'encouraging');
+      await WatsonTTS.speak("First pick a story or take a photo of a book page!", 'encouraging');
       return;
     }
 
@@ -117,8 +169,6 @@ export default function App() {
     setHeardText('');
 
     await WatsonTTS.speak("I'm listening! Start reading aloud.", 'encouraging');
-
-    // Start Watson STT
     await WatsonSTT.startListening(handleSpeechResult);
   }
 
@@ -128,7 +178,7 @@ export default function App() {
 
     if (wordsRead > 0) {
       const praise = await GraniteAI.generateResponse(
-        `You are Gogo Wisdom. The child just finished a reading session. They read ${wordsRead} words with a best streak of ${streak}. Generate a warm closing message. Keep it under 2 sentences.`
+        `You are Gogo Wisdom. The child just finished reading. They read ${wordsRead} words with a best streak of ${streak}. Generate a warm closing message. Keep it under 2 sentences.`
       );
       setMessage(praise);
       await WatsonTTS.speak(praise, 'celebrating');
@@ -141,43 +191,69 @@ export default function App() {
     setHeardText(text);
     console.log('🎤 Heard:', text);
 
-    // Match spoken words against expected words
+    // Get the last few spoken words to match against
     const spokenWords = text.toLowerCase().split(/\s+/);
+    const lastSpoken = spokenWords[spokenWords.length - 1];
 
-    for (const spoken of spokenWords) {
-      if (currentWordIndex >= words.length) break;
+    if (currentWordIndex >= words.length) return;
 
-      const expected = words[currentWordIndex].text.toLowerCase().replace(/[^\w]/g, '');
-      const spokenClean = spoken.replace(/[^\w]/g, '');
+    const expected = words[currentWordIndex].text.toLowerCase().replace(/[^\\w]/g, '');
+    const spokenClean = lastSpoken.replace(/[^\\w]/g, '');
 
-      if (spokenClean === expected || isCloseMatch(spokenClean, expected)) {
-        await handleCorrectWord();
-      } else if (spokenClean.length > 2) {
-        // Only count as mistake if it's a real word attempt
-        await handleMistake(expected, spokenClean);
-      }
+    // Skip common filler words
+    const fillers = ['um', 'uh', 'ah', 'hmm', 'er', 'like'];
+    if (fillers.includes(spokenClean)) return;
+
+    if (spokenClean === expected || isCloseMatch(spokenClean, expected)) {
+      await handleCorrectWord();
+    } else if (spokenClean.length > 2) {
+      // Only count as mistake if it's a real word attempt
+      await handleMistake(expected, spokenClean);
     }
   }
 
-  // Simple fuzzy matching for pronunciation variations
+  // Improved fuzzy matching for pronunciation variations
   function isCloseMatch(spoken: string, expected: string): boolean {
     if (spoken.length < 2 || expected.length < 2) return spoken === expected;
 
-    // Allow 1 character difference for words under 5 chars
-    // Allow 2 character difference for longer words
-    const maxDiff = expected.length < 5 ? 1 : 2;
-    let diff = 0;
+    // Exact match after normalization
+    if (spoken === expected) return true;
 
-    const longer = spoken.length > expected.length ? spoken : expected;
-    const shorter = spoken.length > expected.length ? expected : spoken;
+    // Calculate Levenshtein distance
+    const distance = levenshteinDistance(spoken, expected);
+    const maxLen = Math.max(spoken.length, expected.length);
 
-    diff = longer.length - shorter.length;
+    // Allow more tolerance for longer words
+    const tolerance = expected.length <= 4 ? 1 : expected.length <= 7 ? 2 : 3;
 
-    for (let i = 0; i < shorter.length && diff <= maxDiff; i++) {
-      if (shorter[i] !== longer[i]) diff++;
+    return distance <= tolerance;
+  }
+
+  function levenshteinDistance(a: string, b: string): number {
+    const matrix: number[][] = [];
+
+    for (let i = 0; i <= b.length; i++) {
+      matrix[i] = [i];
+    }
+    for (let j = 0; j <= a.length; j++) {
+      matrix[0][j] = j;
     }
 
-    return diff <= maxDiff;
+    for (let i = 1; i <= b.length; i++) {
+      for (let j = 1; j <= a.length; j++) {
+        if (b.charAt(i - 1) === a.charAt(j - 1)) {
+          matrix[i][j] = matrix[i - 1][j - 1];
+        } else {
+          matrix[i][j] = Math.min(
+            matrix[i - 1][j - 1] + 1,
+            matrix[i][j - 1] + 1,
+            matrix[i - 1][j] + 1
+          );
+        }
+      }
+    }
+
+    return matrix[b.length][a.length];
   }
 
   // ============================================================
@@ -185,6 +261,7 @@ export default function App() {
   // ============================================================
   async function pickImage() {
     setIsLoading(true);
+    setCurrentStory(null);
 
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
@@ -201,6 +278,7 @@ export default function App() {
 
   async function takePhoto() {
     setIsLoading(true);
+    setCurrentStory(null);
 
     const result = await ImagePicker.launchCameraAsync({
       allowsEditing: false,
@@ -219,7 +297,6 @@ export default function App() {
       setMessage("Let me read this page...");
       await WatsonTTS.speak("Let me look at this page.", 'normal');
 
-      // Real OCR extraction
       let text = await OCR.extractTextFree(imageUri);
 
       if (!text || text.trim().length < 5) {
@@ -232,11 +309,10 @@ export default function App() {
         return;
       }
 
-      // Parse words
       const wordList = text.split(/\s+/)
         .filter(w => w.length > 0)
         .map(word => ({
-          text: word.replace(/[^\w'-]/g, ''),
+          text: word.replace(/[^\\w'-]/g, ''),
           isRead: false,
           isCorrect: false,
         }))
@@ -247,7 +323,6 @@ export default function App() {
       setWordsRead(0);
       setStreak(0);
 
-      // AI introduction
       const intro = await GraniteAI.generateResponse(
         `You are Gogo Wisdom. A child is about to read: "${text.substring(0, 150)}..."
         
@@ -260,7 +335,6 @@ export default function App() {
 
       setMessage(intro);
       await WatsonTTS.speak(intro, 'celebrating');
-
     } catch (error) {
       console.error('OCR error:', error);
       setMessage("Eish! Let's try taking another photo.");
@@ -284,11 +358,9 @@ export default function App() {
     setWordsRead(prev => prev + 1);
     setCurrentWordIndex(prev => prev + 1);
 
-    // Award gems
     const result = await Gamification.recordCorrectWord(newStreak);
     setGems(prev => prev + result.gems);
 
-    // Celebrate milestones
     if (result.levelUp) {
       setLevel(result.levelUp);
       const msg = await GraniteAI.generateResponse(
@@ -303,9 +375,8 @@ export default function App() {
       setMessage(msg);
       await WatsonTTS.speak(msg, 'celebrating');
     } else if (currentWordIndex + 1 >= words.length) {
-      // Finished!
       const msg = await GraniteAI.generateResponse(
-        `You are Gogo Wisdom. The child finished reading the whole page (${wordsRead + 1} words)! Generate an EXCITED closing celebration.`
+        `You are Gogo Wisdom. The child finished reading the whole passage (${wordsRead + 1} words)! Generate an EXCITED closing celebration.`
       );
       setMessage(msg);
       await WatsonTTS.speak(msg, 'celebrating');
@@ -322,8 +393,8 @@ export default function App() {
     newWords[currentWordIndex].isCorrect = false;
     setWords(newWords);
 
-    // Pause listening while correcting
-    await WatsonSTT.stopListening();
+    // Move to next word even on mistake
+    setCurrentWordIndex(prev => prev + 1);
 
     const correction = await GraniteAI.generateResponse(
       `You are Gogo Wisdom. The child tried to read "${expected}" but said "${spoken}".
@@ -338,11 +409,30 @@ export default function App() {
 
     setMessage(correction);
     await WatsonTTS.speak(correction, 'encouraging');
+  }
 
-    // Resume listening
-    if (isListening) {
-      await WatsonSTT.startListening(handleSpeechResult);
-    }
+  // ============================================================
+  // STORY MODAL COMPONENT
+  // ============================================================
+  function renderStoryItem({ item }: { item: Story }) {
+    const levelInfo = LEVEL_INFO[item.level];
+    return (
+      <TouchableOpacity
+        style={[styles.storyCard, { borderLeftColor: levelInfo.color }]}
+        onPress={() => selectStory(item)}
+      >
+        <Text style={styles.storyEmoji}>{item.coverEmoji}</Text>
+        <View style={styles.storyInfo}>
+          <Text style={styles.storyTitle}>{item.title}</Text>
+          <View style={styles.storyMeta}>
+            <Text style={[styles.levelBadge, { backgroundColor: levelInfo.color }]}>
+              {levelInfo.emoji} {levelInfo.name}
+            </Text>
+            <Text style={styles.wordCountText}>{item.wordCount} words</Text>
+          </View>
+        </View>
+      </TouchableOpacity>
+    );
   }
 
   // ============================================================
@@ -360,7 +450,9 @@ export default function App() {
           </View>
           <View style={styles.headerText}>
             <Text style={styles.title}>Alex</Text>
-            <Text style={styles.subtitle}>Read Aloud to Gogo!</Text>
+            <Text style={styles.subtitle}>
+              {currentStory ? `📖 ${currentStory.title}` : 'Read Aloud to Gogo!'}
+            </Text>
           </View>
           <View style={styles.gemCounter}>
             <Text style={styles.gemIcon}>💎</Text>
@@ -403,28 +495,29 @@ export default function App() {
           {isLoading ? (
             <View style={styles.loadingState}>
               <ActivityIndicator size="large" color="#4338CA" />
-              <Text style={styles.loadingText}>Reading the page...</Text>
+              <Text style={styles.loadingText}>Loading...</Text>
             </View>
           ) : words.length > 0 ? (
             <View style={styles.wordsContainer}>
               {words.map((word, index) => (
-                <Text
+                <Animated.Text
                   key={index}
                   style={[
                     styles.word,
                     word.isRead && word.isCorrect && styles.wordCorrect,
                     word.isRead && !word.isCorrect && styles.wordIncorrect,
                     index === currentWordIndex && styles.wordCurrent,
+                    index === currentWordIndex && { transform: [{ scale: highlightAnim }] },
                   ]}
                 >
                   {word.text}{' '}
-                </Text>
+                </Animated.Text>
               ))}
             </View>
           ) : (
             <View style={styles.emptyState}>
               <Text style={styles.emptyIcon}>📚</Text>
-              <Text style={styles.emptyText}>Take a photo of a book page to start!</Text>
+              <Text style={styles.emptyText}>Pick a story or take a photo to start!</Text>
             </View>
           )}
         </ScrollView>
@@ -435,6 +528,10 @@ export default function App() {
             <Text style={styles.buttonIcon}>🖼️</Text>
           </TouchableOpacity>
 
+          <TouchableOpacity style={styles.storyButton} onPress={() => setShowStoryModal(true)}>
+            <Text style={styles.buttonIcon}>📖</Text>
+          </TouchableOpacity>
+
           {/* Big Microphone Button */}
           <TouchableOpacity
             style={[styles.micButton, isListening && styles.micButtonActive]}
@@ -443,14 +540,50 @@ export default function App() {
             <Animated.View style={{ transform: [{ scale: isListening ? pulseAnim : 1 }] }}>
               <Text style={styles.micIcon}>{isListening ? '⏹️' : '🎤'}</Text>
             </Animated.View>
-            <Text style={styles.micLabel}>{isListening ? 'STOP' : 'READ ALOUD'}</Text>
+            <Text style={styles.micLabel}>{isListening ? 'STOP' : 'READ'}</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.smallButton} onPress={takePhoto}>
+          <TouchableOpacity style={styles.storyButton} onPress={takePhoto}>
             <Text style={styles.buttonIcon}>📸</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.smallButton} onPress={() => {
+            setWords([]);
+            setCurrentWordIndex(0);
+            setMessage("Pick a new story or take a photo!");
+            setCurrentStory(null);
+          }}>
+            <Text style={styles.buttonIcon}>🔄</Text>
           </TouchableOpacity>
         </View>
       </LinearGradient>
+
+      {/* Story Selection Modal */}
+      <Modal
+        visible={showStoryModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowStoryModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>📚 Pick a Story</Text>
+              <TouchableOpacity onPress={() => setShowStoryModal(false)}>
+                <Text style={styles.modalClose}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <FlatList
+              data={STORIES}
+              keyExtractor={(item) => item.id}
+              renderItem={renderStoryItem}
+              contentContainerStyle={styles.storyList}
+              showsVerticalScrollIndicator={false}
+            />
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -482,21 +615,47 @@ const styles = StyleSheet.create({
   heardText: { fontSize: 14, color: '#FFF', fontStyle: 'italic' },
   readingArea: { flex: 1, backgroundColor: '#FFF', borderRadius: 16, marginBottom: 12 },
   readingContent: { padding: 16, minHeight: 120 },
-  wordsContainer: { flexDirection: 'row', flexWrap: 'wrap' },
-  word: { fontSize: 20, color: '#374151', marginBottom: 6, marginRight: 4 },
+  wordsContainer: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-start' },
+  word: { fontSize: 22, color: '#374151', marginBottom: 8, marginRight: 6, lineHeight: 32 },
   wordCorrect: { color: '#10B981', fontWeight: '600' },
   wordIncorrect: { color: '#EF4444', textDecorationLine: 'underline' },
-  wordCurrent: { backgroundColor: '#FEF3C7', borderRadius: 4, paddingHorizontal: 4, color: '#92400E', fontWeight: '700' },
+  wordCurrent: {
+    backgroundColor: '#FEF08A',
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    color: '#854D0E',
+    fontWeight: '800',
+    fontSize: 26,
+    borderWidth: 2,
+    borderColor: '#FACC15',
+  },
   emptyState: { alignItems: 'center', justifyContent: 'center', paddingVertical: 30 },
   emptyIcon: { fontSize: 40, marginBottom: 10 },
   emptyText: { fontSize: 14, color: '#6B7280', textAlign: 'center' },
   loadingState: { alignItems: 'center', justifyContent: 'center', paddingVertical: 40 },
   loadingText: { marginTop: 10, color: '#6B7280' },
-  actions: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', paddingBottom: 16, gap: 16 },
-  smallButton: { backgroundColor: 'rgba(255,255,255,0.2)', width: 56, height: 56, borderRadius: 28, justifyContent: 'center', alignItems: 'center' },
-  buttonIcon: { fontSize: 24 },
-  micButton: { backgroundColor: '#10B981', width: 100, height: 100, borderRadius: 50, justifyContent: 'center', alignItems: 'center', shadowColor: '#10B981', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 10, elevation: 10 },
+  actions: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', paddingBottom: 16, gap: 12 },
+  smallButton: { backgroundColor: 'rgba(255,255,255,0.2)', width: 48, height: 48, borderRadius: 24, justifyContent: 'center', alignItems: 'center' },
+  storyButton: { backgroundColor: 'rgba(99,102,241,0.6)', width: 52, height: 52, borderRadius: 26, justifyContent: 'center', alignItems: 'center' },
+  buttonIcon: { fontSize: 22 },
+  micButton: { backgroundColor: '#10B981', width: 90, height: 90, borderRadius: 45, justifyContent: 'center', alignItems: 'center', shadowColor: '#10B981', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 10, elevation: 10 },
   micButtonActive: { backgroundColor: '#EF4444', shadowColor: '#EF4444' },
-  micIcon: { fontSize: 36 },
-  micLabel: { color: '#FFF', fontSize: 10, fontWeight: 'bold', marginTop: 4 },
+  micIcon: { fontSize: 32 },
+  micLabel: { color: '#FFF', fontSize: 10, fontWeight: 'bold', marginTop: 2 },
+
+  // Modal styles
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  modalContent: { backgroundColor: '#FFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '80%', paddingBottom: 30 },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: '#E5E7EB' },
+  modalTitle: { fontSize: 20, fontWeight: 'bold', color: '#1E1B4B' },
+  modalClose: { fontSize: 24, color: '#6B7280', padding: 4 },
+  storyList: { padding: 16 },
+  storyCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F9FAFB', borderRadius: 12, padding: 16, marginBottom: 12, borderLeftWidth: 4 },
+  storyEmoji: { fontSize: 36, marginRight: 16 },
+  storyInfo: { flex: 1 },
+  storyTitle: { fontSize: 16, fontWeight: '600', color: '#1E1B4B', marginBottom: 6 },
+  storyMeta: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  levelBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10, color: '#FFF', fontSize: 11, fontWeight: '600', overflow: 'hidden' },
+  wordCountText: { fontSize: 12, color: '#6B7280' },
 });

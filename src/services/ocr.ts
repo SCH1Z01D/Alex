@@ -17,7 +17,7 @@ export async function extractText(imageUri: string): Promise<string> {
     try {
         // Read image as base64
         const base64Image = await FileSystem.readAsStringAsync(imageUri, {
-            encoding: FileSystem.EncodingType.Base64,
+            encoding: 'base64',
         });
 
         // Call Google Cloud Vision API
@@ -76,7 +76,7 @@ export async function extractTextFree(imageUri: string): Promise<string> {
     try {
         // Read image as base64
         const base64Image = await FileSystem.readAsStringAsync(imageUri, {
-            encoding: FileSystem.EncodingType.Base64,
+            encoding: 'base64',
         });
 
         // Create form data

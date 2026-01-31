@@ -39,7 +39,7 @@ export async function startListening(callback: OnSpeechCallback): Promise<void> 
             if (isListening) {
                 await recordAndTranscribe();
             }
-        }, 3000); // Record in 3-second chunks
+        }, 1500); // Record in 1.5-second chunks for faster feedback
 
         console.log('🎤 Watson STT listening started');
 
@@ -83,8 +83,8 @@ async function recordAndTranscribe(): Promise<void> {
         );
         recording = newRecording;
 
-        // Record for 2.5 seconds
-        await new Promise(resolve => setTimeout(resolve, 2500));
+        // Record for 1.2 seconds
+        await new Promise(resolve => setTimeout(resolve, 1200));
 
         // Stop recording
         await recording.stopAndUnloadAsync();
@@ -94,7 +94,7 @@ async function recordAndTranscribe(): Promise<void> {
 
         // Read audio file as base64
         const base64Audio = await FileSystem.readAsStringAsync(uri, {
-            encoding: FileSystem.EncodingType.Base64,
+            encoding: 'base64',
         });
 
         // Send to Watson STT

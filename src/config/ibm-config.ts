@@ -6,15 +6,15 @@
 export const IBM_CONFIG = {
     // Watson Speech-to-Text
     speechToText: {
-        apiKey: 'Wukx6pl6ZsTFkE8agnha4dOj_zT4XvenzlpMckeQnvxu',
-        url: 'https://api.us-south.speech-to-text.watson.cloud.ibm.com',
+        apiKey: 'aMIyLqvTxMxWNgBVKmIp2MbuTG0aw8wR6_F-BLjrJao_',
+        url: 'https://api.us-south.speech-to-text.watson.cloud.ibm.com/instances/4b7d2486-97e6-4d00-ba74-2a24842254c3',
         model: 'en-US_BroadbandModel',
     },
 
     // Watson Text-to-Speech
     textToSpeech: {
-        apiKey: 'iuqrUSC8fq5nrOYixhrvG6TBLSiddy4ayKoao7EW00Jt',
-        url: 'https://api.us-south.text-to-speech.watson.cloud.ibm.com',
+        apiKey: 'op3oWPR78E2Ybwu84S4YT-VfNSACbL7ZTPOGpMZoxnow',
+        url: 'https://api.au-syd.text-to-speech.watson.cloud.ibm.com/instances/a58b311e-c393-486f-bca3-1e24a927eb38',
         voice: 'en-US_AllisonV3Voice',
     },
 
