@@ -1,124 +1,193 @@
-# Alex - AI Reading Tutor 📚
+# Alex - AI Reading Tutor 📚👵🏾
 
-An AI-powered reading companion that transforms reading practice into a magical adventure, powered by IBM Watson and Granite AI.
+An AI-powered reading tutor app featuring **Gogo Wisdom**, a warm South African grandmother who helps children learn to read through real-time voice interaction.
 
-## 🌟 Features
+## Architecture
 
-### 👵🏾 Gogo Wisdom - Your Reading Friend
-- Warm, encouraging South African grandmother persona
-- Uses culturally relevant expressions (Sharp sharp! Ayoba! Hayibo!)
-- Provides gentle corrections using the Sandwich Method
-- Celebrates every success
+```
+┌─────────────────────────────────────┐
+│       Mobile App (Expo/React Native) │
+│  - Records audio from microphone     │
+│  - Plays Gogo's voice responses      │
+│  - Shows conversation transcript     │
+└──────────────┬──────────────────────┘
+               │ WebSocket (audio bytes)
+               ▼
+┌─────────────────────────────────────┐
+│       Python Backend (FastAPI)       │
+│  - Bridges mobile ↔ Gemini Live API  │
+│  - Converts PCM audio to WAV         │
+│  - Manages conversation sessions     │
+└──────────────┬──────────────────────┘
+               │ Google SDK
+               ▼
+┌─────────────────────────────────────┐
+│       Gemini Multimodal Live API     │
+│  - Real-time speech recognition      │
+│  - AI conversation (Gogo persona)    │
+│  - Voice synthesis (24kHz audio)     │
+└─────────────────────────────────────┘
+```
 
-### 💎 Gamification System
-- **Gem Collection**: Earn gems for correct words + streak bonuses
-- **10 Levels**: From "Little Acorn" 🌰 to "Legend" 👑
-- **Animal Companions**: Unlock Professor Hoot 🦉, Memory 🐘, Speedy 🐆, and more!
-- **Adventure Map**: Progress through The Friendly Forest 🌲 to The Story Castle 🏰
+## Prerequisites
 
-### 🎯 Real-Time Feedback
-- Word-by-word highlighting as you read
-- Instant pronunciation feedback
-- Streak tracking with celebrations
+- **Node.js** 18+ and npm
+- **Python** 3.10+
+- **Expo Go** app on your phone
+- Phone and PC on the **same WiFi network**
 
-### ❤️ Emotional Intelligence
-- Detects frustration, fatigue, and confidence
-- Proactive support when struggling
-- Celebrates confidence boosts
+---
 
-## 🚀 Getting Started
+## Quick Start
 
-### Prerequisites
-- Node.js 18+ installed
-- Expo Go app on your phone ([iOS](https://apps.apple.com/app/expo-go/id982107779) | [Android](https://play.google.com/store/apps/details?id=host.exp.exponent))
-
-### Installation
+### 1. Clone the Repository
 
 ```bash
-# Navigate to the project
-cd AlexMobile
+git clone https://github.com/SCH1Z01D/Alex.git
+cd Alex
+git checkout feature/gemini-live-voice
+```
+
+### 2. Start the Backend
+
+```bash
+# Navigate to backend
+cd backend
+
+# Create virtual environment
+python -m venv venv
+
+# Activate it (Windows)
+.\venv\Scripts\activate
+# Or on Mac/Linux
+# source venv/bin/activate
 
 # Install dependencies
+pip install -r requirements.txt
+
+# Run the server
+python main.py
+```
+
+You should see:
+```
+🚀 Starting Alex Voice Backend on 0.0.0.0:8000
+INFO: Uvicorn running on http://0.0.0.0:8000
+```
+
+### 3. Find Your PC's IP Address
+
+**Windows:**
+```bash
+ipconfig
+```
+Look for "IPv4 Address" under your WiFi adapter (e.g., `192.168.1.100`)
+
+**Mac/Linux:**
+```bash
+ifconfig | grep inet
+```
+
+### 4. Configure the Mobile App
+
+Edit `src/services/gemini-live.ts` line 13:
+```typescript
+const BACKEND_URL = 'ws://YOUR_PC_IP:8000/ws';
+// Example: 'ws://192.168.1.100:8000/ws'
+```
+
+### 5. Start the Mobile App
+
+```bash
+# In the Alex root folder (not backend)
+cd ..
 npm install
-
-# Start the development server
-npx expo start
+npx expo start --clear
 ```
 
-### Running on Your Phone
+Scan the QR code with Expo Go on your phone.
 
-1. Open Expo Go on your phone
-2. Scan the QR code from the terminal
-3. Alex will load on your device!
+---
 
-## 🔧 Configuration
+## Testing the App
 
-The app uses IBM Watson services. API keys are configured in:
-- `src/config/ibm-config.ts`
+1. Open the app on your phone
+2. You should see "Connecting to Gogo Wisdom..."
+3. Status changes to "Live Call" when connected
+4. **Gogo will greet you!** 🎤
+5. Start reading aloud - Gogo will respond
 
-### Services Used
-| Service | Purpose |
-|---------|---------|
-| Watson Speech-to-Text | Listens to reading |
-| Watson Text-to-Speech | Gogo's voice |
-| watsonx.ai Granite | AI-powered responses |
+---
 
-## 📱 Testing Demo Mode
-
-Since speech recognition requires native SDKs, the app includes **Demo Controls** for testing in Expo Go:
-
-1. Pick an image (sample text loads automatically)
-2. Tap the microphone to start "reading"
-3. Use the demo buttons:
-   - **✓ Correct** - Simulates reading a word correctly
-   - **✗ Mistake** - Simulates making a mistake
-
-Watch gems accumulate and level up!
-
-## 🏗️ Project Structure
+## Project Structure
 
 ```
-AlexMobile/
-├── App.tsx              # Main application component
+Alex/
+├── App.tsx                    # Main app component
+├── backend/                   # Python backend
+│   ├── main.py               # FastAPI server
+│   ├── gemini_live.py        # Gogo Wisdom session manager
+│   ├── config.py             # Settings
+│   └── requirements.txt      # Python dependencies
 ├── src/
 │   ├── config/
-│   │   └── ibm-config.ts    # IBM Watson configuration
+│   │   └── gemini-config.ts  # Gemini API config
 │   ├── services/
-│   │   ├── granite-ai.ts    # AI response generation
-│   │   └── gamification.ts  # Gems, levels, companions
-│   ├── components/      # Reusable UI components
-│   ├── screens/         # Screen components
-│   ├── hooks/           # Custom React hooks
-│   ├── utils/           # Utility functions
-│   └── types/           # TypeScript type definitions
-├── assets/              # Images and icons
-└── app.json             # Expo configuration
+│   │   ├── gemini-live.ts    # Voice client (WebSocket)
+│   │   ├── gamification.ts   # Progress tracking
+│   │   └── ocr.ts           # OCR for book photos
+│   └── data/
+│       └── stories.ts        # Built-in stories
+└── package.json
 ```
 
-## 🎨 Design Philosophy
+---
 
-Alex is designed with love for South African children learning to read:
+## Configuration
 
-- **Culturally Relevant**: Gogo Wisdom uses familiar South African expressions
-- **Encouragement-First**: Never scolds, always celebrates progress
-- **Gamified Learning**: Makes reading practice feel like an adventure
-- **Emotionally Aware**: Responds to the child's emotional state
+### Backend (`backend/config.py`)
 
-## 🔮 Future Features
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `GEMINI_API_KEY` | Set in file | Your Google AI API key |
+| `VOICE_MODEL` | `Aoede` | Voice style (Puck, Charon, Kore, Fenrir, Aoede) |
+| `PORT` | `8000` | Server port |
 
-- [ ] Real speech recognition integration
-- [ ] Parent dashboard
-- [ ] Comprehension questions
-- [ ] Phonics tracking
-- [ ] Offline mode
-- [ ] Multiple language support
+### Mobile App (`src/services/gemini-live.ts`)
 
-## 📄 License
+| Variable | Description |
+|----------|-------------|
+| `BACKEND_URL` | WebSocket URL to your backend |
 
-MIT License - Built with ❤️ for children learning to read.
+---
 
-## 🙏 Acknowledgments
+## Troubleshooting
 
-- IBM Watson for AI services
-- Expo for the React Native framework
-- All the amazing teachers who inspired this project
+| Issue | Solution |
+|-------|----------|
+| "Connection refused" | Check firewall, ensure same WiFi |
+| Backend won't start | Check Python 3.10+ installed |
+| No audio from Gogo | Check phone volume, not on silent |
+| Recording errors | Grant microphone permission in Expo Go |
+
+---
+
+## API Key
+
+The Gemini API key is stored in `backend/config.py`. To use your own key:
+
+1. Get a key from [Google AI Studio](https://aistudio.google.com/)
+2. Replace the key in `backend/config.py`
+
+---
+
+## Branch Info
+
+- **main**: Stable release
+- **feature/gemini-live-voice**: Latest voice features (this branch)
+
+---
+
+## Team
+
+Built with ❤️ for helping children learn to read.

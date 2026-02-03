@@ -4,8 +4,8 @@
  * Extracts text from book page images
  */
 
-import * as FileSystem from 'expo-file-system';
-import { IBM_CONFIG } from '../config/ibm-config';
+import * as FileSystem from 'expo-file-system/legacy';
+
 
 // Google Cloud Vision API key (you can replace with your own)
 const GOOGLE_VISION_API_KEY = 'AIzaSyBxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'; // TODO: Replace with actual key
